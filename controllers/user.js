@@ -172,7 +172,7 @@ exports.postSignup = async (req, res, next) => {
 exports.getAccount = async (req, res, next) => {
 
   try {
-    const userId = (await req.user).id
+    const userId = (await req.user).id;
     const user = await User.findById(userId);
     res.render('account/profile', {
       title: 'Account Management',
@@ -187,7 +187,7 @@ exports.getAccount = async (req, res, next) => {
  * POST /account/profile
  * Update profile information.
  */
-exports.postUpdateProfile = (req, res, next) => {
+exports.postUpdateProfile = async (req, res, next) => {
   const validationErrors = [];
   if (!validator.isEmail(req.body.email)) validationErrors.push({ msg: 'Please enter a valid email address.' });
 
@@ -197,33 +197,34 @@ exports.postUpdateProfile = (req, res, next) => {
   }
   req.body.email = validator.normalizeEmail(req.body.email, { gmail_remove_dots: false });
 
-  User.findById(req.user.id, (err, user) => {
-    if (err) { return next(err); }
+  try {
+    const userId = (await req.user).id;
+    const user = await User.findById(userId);
+
     if (user.email !== req.body.email) user.emailVerified = false;
     user.email = req.body.email || '';
     user.profile.name = req.body.name || '';
     user.profile.gender = req.body.gender || '';
     user.profile.location = req.body.location || '';
     user.profile.website = req.body.website || '';
-    user.save((err) => {
-      if (err) {
-        if (err.code === 11000) {
-          req.flash('errors', { msg: 'The email address you have entered is already associated with an account.' });
-          return res.redirect('/account');
-        }
-        return next(err);
-      }
-      req.flash('success', { msg: 'Profile information has been updated.' });
-      res.redirect('/account');
-    });
-  });
+
+    await user.save()
+    req.flash('success', { msg: 'Profile information has been updated.' });
+    res.redirect('/account');
+  } catch (err) {
+    if (err.code === 11000) {
+      req.flash('errors', { msg: 'The email address you have entered is already associated with an account.' });
+      return res.redirect('/account');
+    }
+    return next(err);
+  }
 };
 
 /**
  * POST /account/password
  * Update current password.
  */
-exports.postUpdatePassword = (req, res, next) => {
+exports.postUpdatePassword = async (req, res, next) => {
   const validationErrors = [];
   if (!validator.isLength(req.body.password, { min: 8 })) validationErrors.push({ msg: 'Password must be at least 8 characters long' });
   if (req.body.password !== req.body.confirmPassword) validationErrors.push({ msg: 'Passwords do not match' });
@@ -233,38 +234,49 @@ exports.postUpdatePassword = (req, res, next) => {
     return res.redirect('/account');
   }
 
-  User.findById(req.user.id, (err, user) => {
-    if (err) { return next(err); }
+
+  try {
+    const userId = (await req.user).id;
+    const user = await User.findById(userId);
     user.password = req.body.password;
-    user.save((err) => {
-      if (err) { return next(err); }
-      req.flash('success', { msg: 'Password has been changed.' });
-      res.redirect('/account');
-    });
-  });
+    await user.save();
+    req.flash('success', { msg: 'Password has been changed.' });
+    res.redirect('/account');
+  } catch (err) {
+    return next(err);
+  }
 };
 
 /**
  * POST /account/delete
  * Delete user account.
  */
-exports.postDeleteAccount = (req, res, next) => {
-  User.deleteOne({ _id: req.user.id }, (err) => {
-    if (err) { return next(err); }
-    req.logout();
-    req.flash('info', { msg: 'Your account has been deleted.' });
-    res.redirect('/');
-  });
+exports.postDeleteAccount = async (req, res, next) => {
+  try {
+    const userId = (await req.user).id;
+    await User.deleteOne({_id: userId});
+
+    req.logout(function(err) {
+      if (err) return next(err);
+      req.user = null;
+      req.flash('info', { msg: 'Your account has been deleted.' });
+      res.redirect('/');
+    });
+  } catch (error) {
+    return next(err);
+  }
 };
 
 /**
  * GET /account/unlink/:provider
  * Unlink OAuth provider.
  */
-exports.getOauthUnlink = (req, res, next) => {
+exports.getOauthUnlink = async (req, res, next) => {
   const { provider } = req.params;
-  User.findById(req.user.id, (err, user) => {
-    if (err) { return next(err); }
+  const reqUser = await req.user;
+  try {
+    const user = await User.findById(reqUser.id);
+
     user[provider.toLowerCase()] = undefined;
     const tokensWithoutProviderToUnlink = user.tokens.filter((token) =>
       token.kind !== provider.toLowerCase());
@@ -282,12 +294,13 @@ exports.getOauthUnlink = (req, res, next) => {
       return res.redirect('/account');
     }
     user.tokens = tokensWithoutProviderToUnlink;
-    user.save((err) => {
-      if (err) { return next(err); }
-      req.flash('info', { msg: `${_.startCase(_.toLower(provider))} account has been unlinked.` });
-      res.redirect('/account');
-    });
-  });
+    await user.save();
+    req.flash('info', { msg: `${_.startCase(_.toLower(provider))} account has been unlinked.` });
+    res.redirect('/account');
+
+  } catch (err) {
+    return next(err);
+  }
 };
 
 /**
