@@ -337,8 +337,9 @@ exports.getReset = (req, res, next) => {
  * GET /account/verify/:token
  * Verify email address
  */
-exports.getVerifyEmailToken = (req, res, next) => {
-  if (req.user.emailVerified) {
+exports.getVerifyEmailToken = async (req, res, next) => {
+  const reqUser = await req.user;
+  if (reqUser.emailVerified) {
     req.flash('info', { msg: 'The email address has been verified.' });
     return res.redirect('/account');
   }
@@ -350,9 +351,9 @@ exports.getVerifyEmailToken = (req, res, next) => {
     return res.redirect('/account');
   }
 
-  if (req.params.token === req.user.emailVerificationToken) {
+  if (req.params.token === reqUser.emailVerificationToken) {
     User
-      .findOne({ email: req.user.email })
+      .findOne({ email: reqUser.email })
       .then((user) => {
         if (!user) {
           req.flash('errors', { msg: 'There was an error in loading your profile.' });
@@ -379,13 +380,14 @@ exports.getVerifyEmailToken = (req, res, next) => {
  * GET /account/verify
  * Verify email address
  */
-exports.getVerifyEmail = (req, res, next) => {
-  if (req.user.emailVerified) {
+exports.getVerifyEmail = async (req, res, next) => {
+  const reqUser = await req.user;
+  if (reqUser.emailVerified) {
     req.flash('info', { msg: 'The email address has been verified.' });
     return res.redirect('/account');
   }
 
-  if (!mailChecker.isValid(req.user.email)) {
+  if (!mailChecker.isValid(reqUser.email)) {
     req.flash('errors', { msg: 'The email address is invalid or disposable and can not be verified.  Please update your email address and try again.' });
     return res.redirect('/account');
   }
@@ -395,7 +397,7 @@ exports.getVerifyEmail = (req, res, next) => {
 
   const setRandomToken = (token) => {
     User
-      .findOne({ email: req.user.email })
+      .findOne({ email: reqUser.email })
       .then((user) => {
         user.emailVerificationToken = token;
         user = user.save();
@@ -405,10 +407,10 @@ exports.getVerifyEmail = (req, res, next) => {
 
   const sendVerifyEmail = (token) => {
     const mailOptions = {
-      to: req.user.email,
-      from: 'hackathon@starter.com',
-      subject: 'Please verify your email address on Hackathon Starter',
-      text: `Thank you for registering with hackathon-starter.\n\n
+      to: reqUser.email,
+      from: process.env.SMTP_USER,
+      subject: 'Please verify your email address on ACMS',
+      text: `Thank you for registering with ACMS.\n\n
         This verify your email address please click on the following link, or paste this into your browser:\n\n
         http://${req.headers.host}/account/verify/${token}\n\n
         \n\n
@@ -416,7 +418,7 @@ exports.getVerifyEmail = (req, res, next) => {
     };
     const mailSettings = {
       successfulType: 'info',
-      successfulMsg: `An e-mail has been sent to ${req.user.email} with further instructions.`,
+      successfulMsg: `An e-mail has been sent to ${reqUser.email} with further instructions.`,
       loggingError: 'ERROR: Could not send verifyEmail email after security downgrade.\n',
       errorType: 'errors',
       errorMsg: 'Error sending the email verification message. Please try again shortly.',
@@ -472,7 +474,7 @@ exports.postReset = (req, res, next) => {
     if (!user) { return; }
     const mailOptions = {
       to: user.email,
-      from: 'hackathon@starter.com',
+      from: process.env.SMTP_USER,
       subject: 'Your Hackathon Starter password has been changed',
       text: `Hello,\n\nThis is a confirmation that the password for your account ${user.email} has just been changed.\n`
     };
@@ -543,7 +545,7 @@ exports.postForgot = (req, res, next) => {
     const token = user.passwordResetToken;
     const mailOptions = {
       to: user.email,
-      from: 'hackathon@starter.com',
+      from: process.env.SMTP_USER,
       subject: 'Reset your password on Hackathon Starter',
       text: `You are receiving this email because you (or someone else) have requested the reset of the password for your account.\n\n
         Please click on the following link, or paste this into your browser to complete the process:\n\n
