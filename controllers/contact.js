@@ -9,7 +9,7 @@ const nodemailerSendgrid = require('nodemailer-sendgrid');
  */
 exports.getContact = (req, res) => {
   const unknownUser = !(req.user);
-
+  
   res.render('contact', {
     title: 'Contact',
     sitekey: process.env.RECAPTCHA_SITE_KEY,
@@ -25,7 +25,8 @@ exports.postContact = async (req, res) => {
   const validationErrors = [];
   let fromName;
   let fromEmail;
-  if (!req.user) {
+  const reqUser = await req.user;
+  if (!reqUser) {
     if (validator.isEmpty(req.body.name)) validationErrors.push({ msg: 'Please enter your name' });
     if (!validator.isEmail(req.body.email)) validationErrors.push({ msg: 'Please enter a valid email address.' });
   }
@@ -50,12 +51,12 @@ exports.postContact = async (req, res) => {
       return res.redirect('/contact');
     }
 
-    if (!req.user) {
+    if (!reqUser) {
       fromName = req.body.name;
       fromEmail = req.body.email;
     } else {
-      fromName = req.user.profile.name || '';
-      fromEmail = req.user.email;
+      fromName = reqUser.profile.name || '';
+      fromEmail = reqUser.email;
     }
 
     let transportConfig;
