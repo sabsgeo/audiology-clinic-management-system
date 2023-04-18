@@ -307,7 +307,7 @@ exports.getOauthUnlink = async (req, res, next) => {
  * GET /reset/:token
  * Reset Password page.
  */
-exports.getReset = (req, res, next) => {
+exports.getReset = async (req, res, next) => {
   if (req.isAuthenticated()) {
     return res.redirect('/');
   }
@@ -318,19 +318,19 @@ exports.getReset = (req, res, next) => {
     return res.redirect('/forgot');
   }
 
-  User
-    .findOne({ passwordResetToken: req.params.token })
-    .where('passwordResetExpires').gt(Date.now())
-    .exec((err, user) => {
-      if (err) { return next(err); }
-      if (!user) {
-        req.flash('errors', { msg: 'Password reset token is invalid or has expired.' });
-        return res.redirect('/forgot');
-      }
-      res.render('account/reset', {
-        title: 'Password Reset'
-      });
+  try {
+    const user = await User.findOne({ passwordResetToken: req.params.token })
+      .where('passwordResetExpires').gt(Date.now()).exec();
+    if (!user) {
+      req.flash('errors', { msg: 'Password reset token is invalid or has expired.' });
+      return res.redirect('/forgot');
+    }
+    res.render('account/reset', {
+      title: 'Password Reset'
     });
+  } catch (err) {
+    return next(err);
+  }
 };
 
 /**
@@ -475,7 +475,7 @@ exports.postReset = (req, res, next) => {
     const mailOptions = {
       to: user.email,
       from: process.env.SMTP_USER,
-      subject: 'Your Hackathon Starter password has been changed',
+      subject: 'Your ACMS password has been changed',
       text: `Hello,\n\nThis is a confirmation that the password for your account ${user.email} has just been changed.\n`
     };
     const mailSettings = {
@@ -546,7 +546,7 @@ exports.postForgot = (req, res, next) => {
     const mailOptions = {
       to: user.email,
       from: process.env.SMTP_USER,
-      subject: 'Reset your password on Hackathon Starter',
+      subject: 'Reset your password on ACMS',
       text: `You are receiving this email because you (or someone else) have requested the reset of the password for your account.\n\n
         Please click on the following link, or paste this into your browser to complete the process:\n\n
         http://${req.headers.host}/reset/${token}\n\n
